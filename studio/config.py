@@ -18,7 +18,9 @@ DEFAULTS = {
     "quality": 20,                    # CQ/QP-style quality, lower = better (18-26 sane)
     "segment_minutes": 5,             # files are split so a crash never loses more than this
     "always_on": False,               # start recording at launch and whenever a camera appears
-    "record_audio": True,             # system audio (WASAPI loopback of the default output)
+    "record_audio": True,             # system audio (WASAPI loopback), mixed into every camera file
+    "audio_track_file": True,         # also keep a separate audio/ track (master for editing)
+    "audio_offset_ms": 0,             # + if the audio comes in late vs the picture, - if early
     "record_pov": False,              # also record your own screen (DXGI desktop capture)
     "pov_monitor": 0,
     "max_storage_gb": 0,              # >0: delete oldest sessions when the output folder exceeds this

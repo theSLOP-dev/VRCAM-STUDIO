@@ -9,7 +9,7 @@ VRChat's camera can stream over **Spout**, which shares the camera's GPU image d
 - **Always-on:** recording starts automatically whenever a VRChat camera appears.
 - **Crash-safe:** files are split into 5-minute segments, so a crash or power cut loses at most the current few minutes.
 - **Hardware encoding:** NVIDIA NVENC, AMD AMF or Intel QSV, picked automatically, with CPU x264 as a fallback.
-- **Game audio:** recorded via WASAPI loopback, i.e. everything you hear.
+- **Game audio in every clip:** everything you hear (WASAPI loopback) is mixed into each camera's file, in sync, plus a separate audio track.
 - **Optional POV:** also record your own screen.
 - **Immich backup:** every finished segment uploads to your Immich server in the background, one album per session.
 - **Phone remote:** control the camera (mode, Look-at-me, zoom, framing, exposure, photo) from any browser over OSC.
@@ -46,7 +46,7 @@ Recordings go to `Videos\VRCam Studio\<date_time>\`:
 ```
 <sender name>\<sender>_<time>_000.mp4, _001.mp4 ...   one folder per camera, 5-min segments
 audio\audio_<time>_000.m4a ...                       game audio
-pov\pov_<time>_000.mp4 ...                           your screen (if enabled)
+pov\pov_<time>_000.mp4 ...                           your screen (if enabled, no audio)
 session.json                                         wall-clock start of every file, for syncing in an editor
 ```
 
@@ -59,7 +59,7 @@ On the control page, fill in **Immich backup**: your server address (the one you
 - Segments upload as soon as ffmpeg closes them, so a long session trickles in while you play instead of all at the end.
 - If the server is unreachable, files wait and upload when it's back. Uploads are remembered in `.immich_uploaded.json`, so nothing is sent twice.
 - With `max_storage_gb` set, a session is only deleted after it's fully in Immich.
-- Game audio stays local because Immich doesn't store audio-only files. The camera clips are silent; line the audio up in an editor using `session.json`.
+- Every clip has the game audio in it, so what lands in Immich plays with sound. The separate `audio/` track stays local (Immich has no audio-only files).
 
 ## Phone control
 
@@ -77,6 +77,8 @@ In `settings.json`, set `"web_host": "0.0.0.0"` and restart. Then open `http://<
 | `always_on` | false | auto-record whenever a camera exists |
 | `record_audio` | true | system audio loopback |
 | `record_pov` | false | record your own monitor too |
+| `audio_offset_ms` | 0 | nudge audio vs picture if your setup needs it |
+| `audio_track_file` | true | also keep the separate `audio/` track |
 | `max_storage_gb` | 0 | >0: delete oldest sessions past this size |
 | `sender_filter` | "" | only record senders whose name contains this |
 | `immich_url` | "" | Immich server address, empty = no upload |

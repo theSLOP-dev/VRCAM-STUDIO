@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 
-from . import ffmpeg
+from . import audio, ffmpeg
 
 try:
     import SpoutGL
@@ -64,8 +64,9 @@ class SenderRecorder(threading.Thread):
         self.preview = None          # latest small JPEG for the web page
         self.started = None
         self._proc = None
+        self._feed = None
 
-    def _open(self, w, h):
+    def _open(self, w, h, v0):
         s = self.session
         self.part += 1
         folder = os.path.join(s.dir, self.tag)
@@ -73,12 +74,17 @@ class SenderRecorder(threading.Thread):
         stamp = time.strftime("%H%M%S")
         pattern = os.path.join(folder, f"{self.tag}_{stamp}_%03d.mp4")
         args = [s.ff, "-hide_banner", "-loglevel", "error",
-                "-f", "rawvideo", "-pix_fmt", "bgra", "-s", f"{w}x{h}", "-framerate", str(s.fps), "-i", "-",
-                "-pix_fmt", "yuv420p"] + ffmpeg.video_args(s.encoder, s.quality) + \
+                "-f", "rawvideo", "-pix_fmt", "bgra", "-s", f"{w}x{h}", "-framerate", str(s.fps), "-i", "-"]
+        # game audio goes into this camera's own file, starting at the wall time of frame 0
+        self._feed = s.audio.attach(v0) if s.audio else None
+        if self._feed:
+            args += audio.ffmpeg_input(self._feed.port) + audio.ffmpeg_output()
+        args += ["-pix_fmt", "yuv420p"] + ffmpeg.video_args(s.encoder, s.quality) + \
             ffmpeg.segment_args(s.segment_minutes, pattern)
         self._proc = subprocess.Popen(args, stdin=subprocess.PIPE, creationflags=ffmpeg.CREATE_NO_WINDOW)
         self.size = (w, h)
-        s.log(f"[{self.name}] recording {w}x{h} -> {os.path.basename(pattern)} ({s.encoder})")
+        s.log(f"[{self.name}] recording {w}x{h}{' + audio' if self._feed else ''} -> "
+              f"{os.path.basename(pattern)} ({s.encoder})")
         s.mark_file(self.name, pattern, w, h)
 
     def _close(self):
@@ -87,6 +93,9 @@ class SenderRecorder(threading.Thread):
                 self._proc.stdin.close()
             except Exception:
                 pass
+            if self._feed:
+                self._feed.close()
+                self._feed = None
             try:
                 self._proc.wait(timeout=30)
             except Exception:
@@ -136,7 +145,7 @@ class SenderRecorder(threading.Thread):
                         i += 1
                         continue
                     if self._proc is None:
-                        self._open(r.getSenderWidth(), r.getSenderHeight())
+                        self._open(r.getSenderWidth(), r.getSenderHeight(), t0 + i / s.fps)
                     # catch up on the shared clock: duplicate frames if we fell behind
                     n = max(1, int((time.time() - t0) * s.fps) - i + 1)
                     data = last.tobytes() if hasattr(last, "tobytes") else bytes(last)
