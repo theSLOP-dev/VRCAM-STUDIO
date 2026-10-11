@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>VRCam Studio</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0d12;color:#dde;font:14px system-ui,sans-serif}
+header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:#10131b;position:sticky;top:0;z-index:2;flex-wrap:wrap}
+header h1{font-size:15px;margin:0 8px 0 0;color:#9ab}
+button{background:#1d2230;color:#dde;border:1px solid #333a4d;border-radius:9px;padding:8px 12px;font-size:14px;cursor:pointer}
+button.on{background:#1f6f4a;border-color:#2fa36d}
+#rec{background:#3a1018;border-color:#a32f3f;font-weight:700;font-size:16px;padding:9px 20px}
+#rec.live{background:#e0233a;color:#fff;animation:p 1s infinite}@keyframes p{50%{opacity:.65}}
+#recinfo{color:#9aa4bb;font-size:13px}
+main{max-width:1100px;margin:0 auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:10px}
+.sec{border:1px solid #232a3a;border-radius:12px;background:#10141d;padding:12px}
+.sec h3{margin:0 0 10px;font-size:12px;color:#8a93a8;letter-spacing:.08em}
+.cams{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.cam{background:#151a25;border-radius:8px;padding:6px;font-size:12px}
+.cam img{width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;border-radius:5px;display:block}
+.cam .n{margin-top:4px;color:#ccd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#555;margin-right:5px}
+.dot.r{background:#e0233a}.dot.g{background:#2fa36d}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:7px 0}
+.row label{font-size:12px;color:#8a93a8;min-width:74px}
+.row input[type=range]{flex:1}
+canvas{background:#121722;border-radius:50%;border:1px solid #2a3142;touch-action:none;display:block;margin:0 auto}
+.camrow{display:grid;grid-template-columns:18px 1fr 64px 64px 64px 26px;gap:5px;align-items:center;margin:4px 0;font-size:12px}
+.camrow input{width:100%;background:#151a25;color:#dde;border:1px solid #2a3142;border-radius:6px;padding:4px}
+.sw{width:14px;height:14px;border-radius:4px}
+#log{font:11px ui-monospace,monospace;color:#8a93a8;white-space:pre-wrap;max-height:160px;overflow:auto}
+.warn{color:#f5b84a;font-size:12px}
+small{color:#778}
+</style></head><body>
+<header>
+  <h1>VRCam Studio</h1>
+  <button id="rec">● REC</button>
+  <button id="always">Always-on: off</button>
+  <span id="recinfo">idle</span>
+</header>
+<main>
+  <div class="sec" style="grid-column:1/-1">
+    <h3>CAMERAS (SPOUT FEEDS)</h3>
+    <div id="warn" class="warn"></div>
+    <div class="cams" id="cams"></div>
+    <small>Every VRChat camera that streams over Spout shows up here and is recorded to its own file. Your own screen/headset view is never touched.</small>
+  </div>
+
+  <div class="sec">
+    <h3>CAMERA RIG (UP TO 4, MOVES WITH YOU)</h3>
+    <canvas id="dial" width="300" height="300" style="width:300px;height:300px"></canvas>
+    <small style="display:block;text-align:center;margin:4px 0 8px">▲ = the way you face. Drag a dot to place that camera; outer ring = 10 m.</small>
+    <div id="camrows"></div>
+    <div class="row">
+      <select id="preset"></select><button id="add">+ Add camera</button>
+    </div>
+    <div class="row"><button id="apply" class="on">▶ Apply rig in VRChat</button><button id="dstop">■ Stop dolly</button></div>
+    <small>One-time in VRChat: Camera → Dolly settings → Streaming <b>Multi</b>, Loop <b>Repeat</b>. Dolly needs VRC+.</small>
+  </div>
+
+  <div class="sec">
+    <h3>VRCHAT CAMERA</h3>
+    <div class="row"><label>mode</label>
+      <button data-m="0">Off</button><button data-m="2">Stream</button><button data-m="1">Photo</button><button data-m="6">Drone</button></div>
+    <div class="row"><label>behaviour</label>
+      <button data-t="LookAtMe">Look-at-me</button><button data-t="SmoothMovement">Smooth</button>
+      <button data-t="AutoLevelPitch">Level</button><button data-t="Lock">Lock</button><button data-t="Streaming">Spout on</button></div>
+    <div class="row"><label>show</label>
+      <button data-t="LocalPlayer">Me</button><button data-t="RemotePlayer">Others</button>
+      <button data-t="Environment">World</button><button data-t="ShowUIInCamera">UI</button><button data-t="GreenScreen">Greenscreen</button></div>
+    <div class="row"><label>zoom</label><input type="range" data-s="Zoom" min="20" max="150" value="45"></div>
+    <div class="row"><label>frame X</label><input type="range" data-s="LookAtMeXOffset" min="-25" max="25" value="0"></div>
+    <div class="row"><label>frame Y</label><input type="range" data-s="LookAtMeYOffset" min="-25" max="25" value="0"></div>
+    <div class="row"><label>smoothing</label><input type="range" data-s="SmoothingStrength" min="0.1" max="10" step="0.1" value="5"></div>
+    <div class="row"><label>exposure</label><input type="range" data-s="Exposure" min="-10" max="4" step="0.1" value="0"></div>
+    <div class="row"><button data-b="Capture">📸 Photo</button><button data-b="Close">Close camera</button></div>
+  </div>
+
+  <div class="sec" style="grid-column:1/-1">
+    <h3>LOG</h3><div id="log"></div>
+    <small id="out"></small>
+  </div>
+</main>
+<script>
+const K=new URLSearchParams(location.search).get('k')||'';
+const q=p=>p+(p.includes('?')?'&':'?')+(K?'k='+encodeURIComponent(K):'');
+const post=(p,b)=>fetch(q(p),{method:'POST',body:JSON.stringify(b||{})}).then(r=>r.json()).catch(()=>({}));
+const $=id=>document.getElementById(id);
+const COLORS=['#ffcc33','#33ddaa','#ff6fa8','#7aa2ff'];
+let ST={},rig=[],dragI=-1,dirty=false;
+
+async function poll(){
+  try{ST=await (await fetch(q('/api/status'))).json()}catch(e){setTimeout(poll,1500);return}
+  const r=ST.session;
+  $('rec').classList.toggle('live',!!ST.recording);$('rec').textContent=ST.recording?'■ STOP':'● REC';
+  $('always').classList.toggle('on',ST.always_on);$('always').textContent='Always-on: '+(ST.always_on?'ON':'off');
+  $('recinfo').textContent=ST.recording?(fmt(r.secs)+' · '+r.cams.filter(c=>c.alive).length+' cams'+(r.audio?' + audio':'')+(r.pov?' + POV':'')):'idle · encoder '+ST.encoder;
+  $('warn').textContent=(!ST.spout_ok?'Spout library not available: '+ST.spout_err+'. ':'')+(ST.osc_err?ST.osc_err:'')+
+    (ST.spout_ok&&!ST.senders.length?'No Spout cameras yet: open the VRChat camera in Stream mode with Spout Stream on.':'');
+  renderCams();
+  if(!dirty&&dragI<0){rig=JSON.parse(JSON.stringify(ST.rig||[]));renderRows()}
+  drawDial();
+  document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',(ST.ucam||{}).Mode===+b.dataset.m));
+  document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',!!(ST.ucam||{})[b.dataset.t]));
+  $('log').textContent=(ST.log||[]).join('\n');$('out').textContent='Saving to '+ST.output_dir;
+  setTimeout(poll,1000)}
+const fmt=s=>Math.floor(s/3600)+':'+String(Math.floor(s/60)%60).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
+
+function renderCams(){
+  const rec={};((ST.session||{}).cams||[]).forEach(c=>rec[c.name]=c);
+  $('cams').innerHTML=(ST.senders||[]).map(s=>{const c=rec[s.name];const live=c&&c.alive;
+    return '<div class="cam"><img src="'+(live?q('/api/preview?name='+encodeURIComponent(s.name)+'&t='+Date.now()):'')+'" onerror="this.removeAttribute(\'src\')">'+
+      '<div class="n"><span class="dot '+(live?'r':(s.recorded?'g':''))+'"></span>'+s.name+'</div><small>'+s.w+'×'+s.h+(c?' · '+fmt(c.frames/60)+(c.err?' ⚠ '+c.err:''):'')+'</small></div>'}).join('');
+}
+
+// ---- rig dial: top-down, you in the middle facing up; angle + = your left
+const D=$('dial'),dx=D.getContext('2d'),C=150,R=135,MAXD=10;
+const toXY=c=>{const a=c.angle*Math.PI/180,r=R*Math.min(c.dist,MAXD)/MAXD;return[C-r*Math.sin(a),C-r*Math.cos(a)]};
+function drawDial(){dx.clearRect(0,0,300,300);dx.strokeStyle='#232a3a';
+  for(let m=2;m<=MAXD;m+=2){dx.beginPath();dx.arc(C,C,R*m/MAXD,0,7);dx.stroke()}
+  dx.fillStyle='#7aa2ff';dx.beginPath();dx.moveTo(C,C-14);dx.lineTo(C-9,C+8);dx.lineTo(C+9,C+8);dx.fill();
+  rig.forEach((c,i)=>{const[x,y]=toXY(c);dx.strokeStyle=COLORS[i];dx.globalAlpha=.35;dx.beginPath();dx.moveTo(x,y);dx.lineTo(C,C);dx.stroke();dx.globalAlpha=1;
+    dx.fillStyle=COLORS[i];dx.beginPath();dx.arc(x,y,11,0,7);dx.fill();dx.fillStyle='#000';dx.font='bold 12px sans-serif';dx.fillText(i+1,x-4,y+4)})}
+function pick(e){const r=D.getBoundingClientRect(),x=(e.clientX-r.left)*300/r.width,y=(e.clientY-r.top)*300/r.height;return[x,y]}
+D.onpointerdown=e=>{const[x,y]=pick(e);let best=-1,bd=30;rig.forEach((c,i)=>{const[cx,cy]=toXY(c);const d=Math.hypot(cx-x,cy-y);if(d<bd){bd=d;best=i}});
+  dragI=best;if(best>=0)D.setPointerCapture(e.pointerId)};
+D.onpointermove=e=>{if(dragI<0)return;const[x,y]=pick(e);const c=rig[dragI];
+  c.angle=(Math.atan2(-(x-C),-(y-C))*180/Math.PI+360)%360;c.dist=Math.max(0.5,Math.min(MAXD,Math.hypot(x-C,y-C)/R*MAXD));
+  c.angle=Math.round(c.angle);c.dist=Math.round(c.dist*10)/10;drawDial();renderRows()};
+D.onpointerup=()=>{if(dragI>=0){dragI=-1;saveRig()}};
+function renderRows(){$('camrows').innerHTML='<div class="camrow"><span></span><small>name</small><small>angle°</small><small>dist m</small><small>height m</small><span></span></div>'+
+  rig.map((c,i)=>'<div class="camrow"><span class="sw" style="background:'+COLORS[i]+'"></span>'+
+   '<input value="'+c.name+'" onchange="rig['+i+'].name=this.value;saveRig()">'+
+   ['angle','dist','height'].map(k=>'<input type="number" step="'+(k=='angle'?5:0.1)+'" value="'+c[k]+'" onchange="rig['+i+'].'+k+'=+this.value;saveRig()">').join('')+
+   '<button onclick="rig.splice('+i+',1);saveRig()" style="padding:2px 6px">✕</button></div>').join('')}
+function saveRig(){dirty=true;renderRows();drawDial();post('/api/rig',{cams:rig}).then(()=>dirty=false)}
+$('add').onclick=()=>{if(rig.length>=4)return alert('VRChat streams at most 4 dolly cameras at once');
+  const p=ST.presets[$('preset').value];rig.push(Object.assign({name:$('preset').value,zoom:45},p));saveRig()};
+$('apply').onclick=()=>post('/api/rig/apply').then(r=>r.ok&&($('apply').textContent='▶ Applied - re-apply'));
+$('dstop').onclick=()=>post('/api/dolly/play',{on:false});
+fetch(q('/api/status')).then(r=>r.json()).then(s=>{$('preset').innerHTML=Object.keys(s.presets).map(k=>'<option>'+k+'</option>').join('')});
+
+// ---- header + camera controls
+$('rec').onclick=()=>post(ST.recording?'/api/rec/stop':'/api/rec/start');
+$('always').onclick=()=>post('/api/always_on',{on:!ST.always_on});
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>post('/api/ucam',{k:'Mode',v:+b.dataset.m}));
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>post('/api/ucam',{k:b.dataset.t,v:!((ST.ucam||{})[b.dataset.t])}));
+document.querySelectorAll('[data-s]').forEach(i=>i.onchange=()=>post('/api/ucam',{k:i.dataset.s,v:+i.value}));
+document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>post('/api/ucam',{k:b.dataset.b}));
+poll();
+</script></body></html>
