@@ -89,6 +89,13 @@ small{color:#778}
   </div>
 
   <div class="sec">
+    <h3>AVATAR QUAD CAM (NO VRC+)</h3>
+    <div class="row"><button id="quadrec">Quad Cam recording: off</button>
+      <label style="min-width:0">monitor</label><input id="quadmon" type="number" min="0" max="8" value="0" style="width:52px;background:#151a25;color:#dde;border:1px solid #2a3142;border-radius:6px;padding:4px"></div>
+    <small>For an avatar with the Quad Cam (coolguy): turn on <b>Quad Cam</b> in the action menu, run VRChat <b>full screen</b> on this monitor, press REC. Your screen is recorded and split into 4 angle files (front / left / back / right), each with the game audio, and uploaded like any other clip.</small>
+  </div>
+
+  <div class="sec">
     <h3>IMMICH BACKUP</h3>
     <div id="imst" style="font-size:13px;margin-bottom:6px">off</div>
     <div class="row"><label>server</label><input id="imurl" placeholder="http://192.168.1.20:2283" style="flex:1"></div>
@@ -116,7 +123,7 @@ async function poll(){
   const r=ST.session;
   $('rec').classList.toggle('live',!!ST.recording);$('rec').textContent=ST.recording?'■ STOP':'● REC';
   $('always').classList.toggle('on',ST.always_on);$('always').textContent='Always-on: '+(ST.always_on?'ON':'off');
-  $('recinfo').textContent=ST.recording?(fmt(r.secs)+' · '+r.cams.filter(c=>c.alive).length+' cams'+(r.audio?' + audio':'')+(r.pov?' + POV':'')):'idle · encoder '+ST.encoder;
+  $('recinfo').textContent=ST.recording?(fmt(r.secs)+' · '+r.cams.filter(c=>c.alive).length+' cams'+(r.audio?' + audio':'')+(r.quad?' + Quad Cam':(r.pov?' + POV':''))):'idle · encoder '+ST.encoder;
   $('warn').textContent=(!ST.spout_ok?'Spout library not available: '+ST.spout_err+'. ':'')+(ST.osc_err?ST.osc_err:'')+
     (ST.spout_ok&&!ST.senders.length?'No Spout cameras yet: open the VRChat camera in Stream mode with Spout Stream on.':'')+
     (ST.spout_ok&&ST.senders.length==1?' Only 1 camera: extra angles come from the Camera Dolly (VRC+ only) with Streaming = Multi, then Apply rig.':'');
@@ -126,6 +133,8 @@ async function poll(){
   document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',(ST.ucam||{}).Mode===+b.dataset.m));
   document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',!!(ST.ucam||{})[b.dataset.t]));
   renderImmich();
+  $('quadrec').classList.toggle('on',!!ST.quad_split);$('quadrec').textContent='Quad Cam recording: '+(ST.quad_split?'ON':'off');
+  if(document.activeElement!==$('quadmon'))$('quadmon').value=ST.pov_monitor||0;
   $('log').textContent=(ST.log||[]).join('\n');$('out').textContent='Saving to '+ST.output_dir;
   setTimeout(poll,1000)}
 const fmt=s=>Math.floor(s/3600)+':'+String(Math.floor(s/60)%60).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -147,6 +156,9 @@ $('imsave').onclick=()=>{const b={immich_url:$('imurl').value,immich_album:$('im
   if($('imkey').value)b.immich_api_key=$('imkey').value;
   $('imres').textContent='testing...';
   post('/api/immich',b).then(r=>{$('imres').textContent=r.ok?'✓ connected':(r.error||'saved (off: needs url + key)');if(r.ok)$('imkey').value=''})};
+
+$('quadrec').onclick=()=>post('/api/quad',{on:!ST.quad_split,monitor:+$('quadmon').value});
+$('quadmon').onchange=()=>post('/api/quad',{on:!!ST.quad_split,monitor:+$('quadmon').value});
 
 // ---- rig dial: top-down, you in the middle facing up; angle + = your left
 const D=$('dial'),dx=D.getContext('2d'),C=150,R=135,MAXD=10;

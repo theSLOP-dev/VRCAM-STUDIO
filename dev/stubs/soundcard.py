@@ -1,4 +1,4 @@
-import time, numpy as np
+import os, time, numpy as np
 R = 48000
 class _Rec:
     def __init__(s, n): s.t = time.time(); s.stalled = False
@@ -9,7 +9,7 @@ class _Rec:
         now = time.time()
         if end > now: time.sleep(end - now)
         # simulate WASAPI loopback silence: no packets between t0+6 and t0+9
-        if not s.stalled and int(s.t) % 30 == 6:
+        if not s.stalled and os.environ.get("FAKE_STALL", "1") == "1" and int(s.t) % 30 == 6:
             s.stalled = True; time.sleep(3); s.t = time.time(); return np.zeros((0, 2), "f4")
         ts = s.t + np.arange(numframes) / R
         x = np.where((ts % 1.0) < 0.005, 0.9, 0.0).astype("f4")   # 5 ms click at each whole second

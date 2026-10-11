@@ -27,8 +27,9 @@ KEEP = 10 * RATE           # history kept so a camera that starts late still get
 
 def ffmpeg_input(port):
     """ffmpeg input args for a camera's audio feed (connects to AudioRecorder.attach's port)."""
-    return ["-thread_queue_size", "4096", "-f", "f32le", "-ar", str(RATE), "-ac", "2",
-            "-i", f"tcp://127.0.0.1:{port}"]
+    # raw PCM needs no probing; ffmpeg would otherwise sit ~4 s reading it before starting the video
+    return ["-thread_queue_size", "4096", "-probesize", "32", "-analyzeduration", "0",
+            "-f", "f32le", "-ar", str(RATE), "-ac", "2", "-i", f"tcp://127.0.0.1:{port}"]
 
 
 def ffmpeg_output():
@@ -66,6 +67,7 @@ class _Sink(threading.Thread):
 class _Feed:
     def __init__(self, bus, v0):
         self.sink = None
+        self.t_accept = None
         self.closed = False
         self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.srv.bind(("127.0.0.1", 0))
@@ -81,9 +83,10 @@ class _Feed:
             return
         finally:
             self.srv.close()
+        self.t_accept = time.time()
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.sink = _Sink(conn.sendall, conn.close, 0)
-        bus._add(self.sink, bus._k(v0))
+        bus._add(self.sink, bus._k(time.time() if v0 is None else v0))
         if self.closed:
             self.sink.close()
 
@@ -121,9 +124,9 @@ class AudioRecorder(threading.Thread):
             self.sinks.append(sink)
         sink.start()
 
-    def attach(self, v0):
+    def attach(self, v0=None):
         """Open a socket for one camera's ffmpeg; its audio starts at wall time v0 (the camera's
-        first frame). Returns a Feed (.port for ffmpeg, .close() when the file ends), or None."""
+        first frame), or at connect time if None. Returns a Feed (.port, .close()), or None."""
         if not self.ready.wait(3) or self.a0 is None or self.stop_evt.is_set():
             return None
         return _Feed(self, v0)
@@ -239,33 +242,66 @@ class AudioRecorder(threading.Thread):
         self.detach_all()
 
 
+# Avatar Quad Cam (coolguy): the avatar draws its 4 cameras as a 2x2 over the whole VRChat view.
+# Tile order matches the avatar: 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right.
+QUAD_TILES = [("1_front", "0", "0"), ("2_left", "iw/2", "0"), ("3_back", "0", "ih/2"), ("4_right", "iw/2", "ih/2")]
+
+
 class PovRecorder:
-    """Optional: your own screen (what you see), via DXGI desktop duplication in ffmpeg."""
+    """Your own screen via DXGI desktop duplication in ffmpeg, with the game audio.
+    With quad_split on, the screen is the avatar's 2x2 Quad Cam view and is written as 4 angle files."""
 
     def __init__(self, session, monitor=0):
         self.session = session
         self.monitor = monitor
         self.proc = None
+        self.feed = None
 
     def start(self):
         s = self.session
-        folder = os.path.join(s.dir, "pov")
-        os.makedirs(folder, exist_ok=True)
-        pattern = os.path.join(folder, f"pov_{time.strftime('%H%M%S')}_%03d.mp4")
-        src = f"ddagrab=output_idx={self.monitor}:framerate={s.fps},hwdownload,format=bgra"
-        args = [s.ff, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", src,
-                "-pix_fmt", "yuv420p"] + ffmpeg.video_args(s.encoder, s.quality) + \
-            ffmpeg.segment_args(s.segment_minutes, pattern)
+        st = s.studio.settings
+        quad = bool(st.get("quad_split"))
+        # pov_source: override the capture input (lavfi graph), used for testing off Windows
+        src = st.get("pov_source") or f"ddagrab=output_idx={self.monitor}:framerate={s.fps},hwdownload,format=bgra"
+        args = [s.ff, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", src]
+        self.feed = s.audio.attach() if s.audio else None
+        if self.feed:
+            args += ffmpeg_input(self.feed.port)
+        stamp = time.strftime("%H%M%S")
+        outs = []
+        if quad:
+            graph = "[0:v]split=4" + "".join(f"[s{i}]" for i in range(4)) + ";" + ";".join(
+                f"[s{i}]crop=iw/2:ih/2:{x}:{y}[q{i}]" for i, (_, x, y) in enumerate(QUAD_TILES))
+            args += ["-filter_complex", graph]
+            for i, (name, _, _) in enumerate(QUAD_TILES):
+                outs.append((f"[q{i}]", os.path.join(s.dir, "quad", f"angle{name}", f"angle{name}_{stamp}_%03d.mp4"), f"quad {name}"))
+        else:
+            outs.append(("0:v", os.path.join(s.dir, "pov", f"pov_{stamp}_%03d.mp4"), "pov"))
+        for vmap, pattern, label in outs:
+            os.makedirs(os.path.dirname(pattern), exist_ok=True)
+            args += ["-map", vmap]
+            if self.feed:
+                # no -shortest here: with a split filter graph it stalls ffmpeg's sync queue; 'q' ends it cleanly
+                args += ["-map", "1:a", "-c:a", "aac", "-b:a", "192k"]
+            args += ["-pix_fmt", "yuv420p"] + ffmpeg.video_args(s.encoder, s.quality) + \
+                ffmpeg.segment_args(s.segment_minutes, pattern)
         self.proc = subprocess.Popen(args, stdin=subprocess.PIPE, creationflags=ffmpeg.CREATE_NO_WINDOW)
-        s.mark_file("pov", pattern, 0, 0)
-        s.log(f"[pov] recording monitor {self.monitor}")
+        for _, pattern, label in outs:
+            s.mark_file(label, pattern, 0, 0)
+        s.log(f"[pov] recording monitor {self.monitor}" + (" as 4 Quad Cam angles" if quad else "") +
+              (" + audio" if self.feed else ""))
 
     def stop(self):
         if self.proc:
             try:
                 self.proc.stdin.write(b"q")
                 self.proc.stdin.flush()
-                self.proc.wait(timeout=20)
+            except Exception:
+                pass
+            if self.feed:
+                self.feed.close()
+            try:
+                self.proc.wait(timeout=30)
             except Exception:
                 self.proc.kill()
             self.proc = None

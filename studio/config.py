@@ -23,6 +23,7 @@ DEFAULTS = {
     "audio_offset_ms": 0,             # + if the audio comes in late vs the picture, - if early
     "record_pov": False,              # also record your own screen (DXGI desktop capture)
     "pov_monitor": 0,
+    "quad_split": False,              # avatar Quad Cam: split the screen recording into 4 angle files
     "max_storage_gb": 0,              # >0: delete oldest sessions when the output folder exceeds this
     "sender_filter": "",              # only record Spout senders whose name contains this (empty = all)
     # VRChat OSC

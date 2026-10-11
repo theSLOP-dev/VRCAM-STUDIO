@@ -65,13 +65,13 @@ class Session:
     def stop(self):
         for r in self.recorders.values():
             r.stop()
+        if self.pov:
+            self.pov.stop()
         for r in self.recorders.values():
             r.join(timeout=30)
         if self.audio:
             self.audio.stop()
             self.audio.join(timeout=20)
-        if self.pov:
-            self.pov.stop()
         self._write_meta()
         self.log(f"session saved ({round(time.time() - self.t0)}s) -> {self.dir}")
 
@@ -83,7 +83,7 @@ class Session:
                      for n, r in self.recorders.items()],
             "audio": None if not self.audio else {"alive": self.audio.is_alive(), "err": self.audio.err,
                                                   "level": round(self.audio.level, 3)},
-            "pov": bool(self.pov),
+            "pov": bool(self.pov), "quad": bool(self.pov and self.studio.settings.get("quad_split")),
         }
 
 
@@ -186,6 +186,7 @@ class Studio:
             "encoder": self.encoder, "always_on": bool(self.settings.get("always_on")),
             "output_dir": self.settings["output_dir"], "log": self.logs[-12:],
             "immich": self.uploader.status(),
+            "quad_split": bool(self.settings.get("quad_split")), "pov_monitor": int(self.settings.get("pov_monitor", 0)),
         }
 
     def preview(self, name):

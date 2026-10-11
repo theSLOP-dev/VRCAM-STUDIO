@@ -86,6 +86,16 @@ def make_handler(studio, osc, settings):
                 if settings["always_on"]:
                     studio.start()
                 return self._send(200, {"ok": True, "always_on": settings["always_on"]})
+            if p == "/api/quad":
+                on = bool(b.get("on"))
+                settings["quad_split"] = on
+                settings["record_pov"] = on or bool(settings.get("record_pov") and "on" not in b)
+                if "monitor" in b:
+                    settings["pov_monitor"] = max(0, int(b["monitor"]))
+                config.save(settings)
+                studio.log(f"avatar Quad Cam recording {'ON' if on else 'off'} (monitor {settings['pov_monitor']})"
+                           + (" - applies from the next REC" if studio.session else ""))
+                return self._send(200, {"ok": True, "quad_split": on})
             if p == "/api/immich":
                 for k in ("immich_url", "immich_api_key", "immich_album"):
                     if k in b:
