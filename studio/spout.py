@@ -159,7 +159,7 @@ class SenderRecorder(threading.Thread):
                     self.frames += n
                     self.dups += n - 1
                     i += n
-                    if time.time() - last_preview > 1.0:
+                    if time.time() - last_preview > 0.4:      # ~2.5 fps for the quad monitor
                         last_preview = time.time()
                         self._make_preview(data)
         except Exception as e:
@@ -173,8 +173,12 @@ class SenderRecorder(threading.Thread):
             from PIL import Image
             import io
             w, h = self.size
-            im = Image.frombuffer("RGBA", (w, h), data, "raw", "BGRA", 0, 1).convert("RGB")
-            im.thumbnail((320, 180))
+            im = Image.frombuffer("RGBA", (w, h), data, "raw", "BGRA", 0, 1)
+            f = max(1, min(w // 480, h // 270))
+            if f > 1:
+                im = im.reduce(f)                   # cheap integer downscale first
+            im = im.convert("RGB")
+            im.thumbnail((480, 270))
             b = io.BytesIO()
             im.save(b, "JPEG", quality=70)
             self.preview = b.getvalue()

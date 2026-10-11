@@ -31,13 +31,25 @@ canvas{background:#121722;border-radius:50%;border:1px solid #2a3142;touch-actio
 #log{font:11px ui-monospace,monospace;color:#8a93a8;white-space:pre-wrap;max-height:160px;overflow:auto}
 .warn{color:#f5b84a;font-size:12px}
 small{color:#778}
+#quad{position:fixed;inset:0;background:#000;z-index:9;display:none;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px}
+#quad.show{display:grid}
+#quad.one{grid-template-columns:1fr;grid-template-rows:1fr}
+#quad .t{position:relative;background:#07090d;overflow:hidden}
+#quad .t img{width:100%;height:100%;object-fit:contain;display:block}
+#quad .t span{position:absolute;left:6px;top:4px;font:12px system-ui;color:#fff;text-shadow:0 0 4px #000}
+#quad .t.empty span{color:#556}
+#qbar{position:fixed;right:8px;bottom:8px;z-index:10;display:none;gap:6px}
+#qbar.show{display:flex}
 </style></head><body>
 <header>
   <h1>VRCam Studio</h1>
   <button id="rec">● REC</button>
   <button id="always">Always-on: off</button>
+  <button id="qbtn">▦ Quad</button>
   <span id="recinfo">idle</span>
 </header>
+<div id="quad"></div>
+<div id="qbar"><button id="qrec">● REC</button><button id="qclose">✕</button></div>
 <main>
   <div class="sec" style="grid-column:1/-1">
     <h3>CAMERAS (SPOUT FEEDS)</h3>
@@ -170,5 +182,22 @@ document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>post('/api/ucam',
 document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>post('/api/ucam',{k:b.dataset.t,v:!((ST.ucam||{})[b.dataset.t])}));
 document.querySelectorAll('[data-s]').forEach(i=>i.onchange=()=>post('/api/ucam',{k:i.dataset.s,v:+i.value}));
 document.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>post('/api/ucam',{k:b.dataset.b}));
+// ---- quad monitor: 2x2 of the live feeds (tap a tile = that camera fullscreen, tap again = back)
+let quadOn=false,solo=null,qTimer=null;
+function quadTiles(){const names=(ST.senders||[]).map(s=>s.name);
+  const show=solo?[solo]:names.slice(0,4);while(!solo&&show.length<4)show.push(null);
+  const Q=$('quad');Q.classList.toggle('one',!!solo);
+  if(Q.dataset.k!==show.join('|')){Q.dataset.k=show.join('|');
+    Q.innerHTML=show.map((n,i)=>'<div class="t'+(n?'':' empty')+'" data-n="'+(n||'')+'"><img><span>'+(n?(i+1)+' · '+n:'no camera '+(i+1))+'</span></div>').join('');
+    Q.querySelectorAll('.t').forEach(t=>t.onclick=()=>{if(t.dataset.n){solo=solo?null:t.dataset.n;quadTiles()}})}
+  const live={};((ST.session||{}).cams||[]).forEach(c=>live[c.name]=c.alive);
+  Q.querySelectorAll('.t').forEach((t,i)=>{const n=t.dataset.n;if(!n)return;const im=t.querySelector('img');
+    t.querySelector('span').textContent=(solo?'':(i+1)+' · ')+n+(live[n]?'':' · not recording (press REC to see it)');
+    if(live[n]){const u=q('/api/preview?name='+encodeURIComponent(n)+'&t='+Date.now());const pre=new Image();pre.onload=()=>im.src=u;pre.src=u}
+});
+  $('qrec').classList.toggle('live',!!ST.recording);$('qrec').textContent=ST.recording?'■ STOP':'● REC'}
+$('qbtn').onclick=()=>{quadOn=true;solo=null;$('quad').classList.add('show');$('qbar').classList.add('show');quadTiles();qTimer=setInterval(quadTiles,400)};
+$('qclose').onclick=()=>{quadOn=false;clearInterval(qTimer);$('quad').classList.remove('show');$('qbar').classList.remove('show')};
+$('qrec').onclick=()=>post(ST.recording?'/api/rec/stop':'/api/rec/start');
 poll();
 </script></body></html>
