@@ -76,6 +76,16 @@ small{color:#778}
     <div class="row"><button data-b="Capture">📸 Photo</button><button data-b="Close">Close camera</button></div>
   </div>
 
+  <div class="sec">
+    <h3>IMMICH BACKUP</h3>
+    <div id="imst" style="font-size:13px;margin-bottom:6px">off</div>
+    <div class="row"><label>server</label><input id="imurl" placeholder="http://192.168.1.20:2283" style="flex:1"></div>
+    <div class="row"><label>API key</label><input id="imkey" type="password" placeholder="Immich → Account Settings → API Keys" style="flex:1"></div>
+    <div class="row"><label>album</label><input id="imalb" style="flex:1"></div>
+    <div class="row"><button id="imsave" class="on">Save + test</button><small id="imres"></small></div>
+    <small>Each finished segment is uploaded in the background. Use {session} in the album name for one album per session. Audio stays local (Immich has no audio-only files).</small>
+  </div>
+
   <div class="sec" style="grid-column:1/-1">
     <h3>LOG</h3><div id="log"></div>
     <small id="out"></small>
@@ -103,6 +113,7 @@ async function poll(){
   drawDial();
   document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',(ST.ucam||{}).Mode===+b.dataset.m));
   document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',!!(ST.ucam||{})[b.dataset.t]));
+  renderImmich();
   $('log').textContent=(ST.log||[]).join('\n');$('out').textContent='Saving to '+ST.output_dir;
   setTimeout(poll,1000)}
 const fmt=s=>Math.floor(s/3600)+':'+String(Math.floor(s/60)%60).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -113,6 +124,17 @@ function renderCams(){
     return '<div class="cam"><img src="'+(live?q('/api/preview?name='+encodeURIComponent(s.name)+'&t='+Date.now()):'')+'" onerror="this.removeAttribute(\'src\')">'+
       '<div class="n"><span class="dot '+(live?'r':(s.recorded?'g':''))+'"></span>'+s.name+'</div><small>'+s.w+'×'+s.h+(c?' · '+fmt(c.frames/60)+(c.err?' ⚠ '+c.err:''):'')+'</small></div>'}).join('');
 }
+
+let imInit=false;
+function renderImmich(){const m=ST.immich||{};
+  if(!imInit){imInit=true;$('imurl').value=m.url||'';$('imalb').value=m.album||'';if(m.has_key)$('imkey').placeholder='saved (leave blank to keep)'}
+  $('imst').innerHTML=!m.enabled?'<span class="dot"></span>off':
+    '<span class="dot '+(m.online?'g':(m.online===false?'r':''))+'"></span>'+(m.online?'connected':(m.online===false?'offline - will retry':'checking'))+
+    ' · '+m.uploaded+' uploaded · '+m.pending+' waiting'+(m.uploading?' · ↑ '+m.uploading:'')+(m.err?'<div class="warn">'+m.err+'</div>':'')}
+$('imsave').onclick=()=>{const b={immich_url:$('imurl').value,immich_album:$('imalb').value};
+  if($('imkey').value)b.immich_api_key=$('imkey').value;
+  $('imres').textContent='testing...';
+  post('/api/immich',b).then(r=>{$('imres').textContent=r.ok?'✓ connected':(r.error||'saved (off: needs url + key)');if(r.ok)$('imkey').value=''})};
 
 // ---- rig dial: top-down, you in the middle facing up; angle + = your left
 const D=$('dial'),dx=D.getContext('2d'),C=150,R=135,MAXD=10;

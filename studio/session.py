@@ -5,7 +5,7 @@ import shutil
 import threading
 import time
 
-from . import ffmpeg, spout
+from . import ffmpeg, immich, spout
 from .audio import AudioRecorder, PovRecorder
 
 
@@ -100,6 +100,8 @@ class Studio:
         self.log(f"encoder: {self.encoder}")
         if not spout.SPOUT_OK:
             self.log(f"Spout unavailable: {spout.SPOUT_ERR}")
+        self.uploader = immich.Uploader(self)
+        self.uploader.start()
         threading.Thread(target=self._watch, daemon=True).start()
         if settings.get("always_on"):
             self.start()
@@ -151,6 +153,7 @@ class Studio:
             s, self.session = self.session, None
         if s:
             s.stop()
+            self.uploader.kick()
         return True
 
     def prune(self):
@@ -167,7 +170,7 @@ class Studio:
         for d in dirs:
             if total <= cap * 1e9:
                 break
-            if d == current:
+            if d == current or self.uploader.has_pending(d):
                 continue
             sz = size(d)
             shutil.rmtree(d, ignore_errors=True)
@@ -182,6 +185,7 @@ class Studio:
             "spout_ok": spout.SPOUT_OK, "spout_err": spout.SPOUT_ERR,
             "encoder": self.encoder, "always_on": bool(self.settings.get("always_on")),
             "output_dir": self.settings["output_dir"], "log": self.logs[-12:],
+            "immich": self.uploader.status(),
         }
 
     def preview(self, name):

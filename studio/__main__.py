@@ -44,6 +44,16 @@ def doctor():
         print(f"OSC listen port {s['osc_listen_port']}: free")
     except OSError:
         print(f"OSC listen port {s['osc_listen_port']}: IN USE (another OSC app) - camera control still works")
+    if s.get("immich_url") and s.get("immich_api_key"):
+        from . import immich
+        api = immich.Immich(s["immich_url"], s["immich_api_key"], timeout=8)
+        try:
+            api._json("GET", "/albums")
+            print("immich:", s["immich_url"], "OK (key works)")
+        except Exception as e:
+            print("immich:", s["immich_url"], "FAIL", e)
+    else:
+        print("immich: off (set immich_url + immich_api_key)")
     print("output:", s["output_dir"])
 
 

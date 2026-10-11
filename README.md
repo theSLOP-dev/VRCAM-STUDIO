@@ -11,6 +11,7 @@ VRChat's camera can stream over **Spout**, which shares the camera's GPU image d
 - **Hardware encoding:** NVIDIA NVENC, AMD AMF or Intel QSV, picked automatically, with CPU x264 as a fallback.
 - **Game audio:** recorded via WASAPI loopback, i.e. everything you hear.
 - **Optional POV:** also record your own screen.
+- **Immich backup:** every finished segment uploads to your Immich server in the background, one album per session.
 - **Phone remote:** control the camera (mode, Look-at-me, zoom, framing, exposure, photo) from any browser over OSC.
 
 ## Requirements
@@ -51,6 +52,15 @@ session.json                                         wall-clock start of every f
 
 All files in a session start within a few frames of each other, and `session.json` has each file's exact start time if you need to line them up.
 
+## Immich backup
+
+On the control page, fill in **Immich backup**: your server address (the one you open Immich at, e.g. `http://192.168.1.20:2283`) and an API key (Immich → Account Settings → API Keys → New API Key), then **Save + test**.
+
+- Segments upload as soon as ffmpeg closes them, so a long session trickles in while you play instead of all at the end.
+- If the server is unreachable, files wait and upload when it's back. Uploads are remembered in `.immich_uploaded.json`, so nothing is sent twice.
+- With `max_storage_gb` set, a session is only deleted after it's fully in Immich.
+- Game audio stays local because Immich doesn't store audio-only files. The camera clips are silent; line the audio up in an editor using `session.json`.
+
 ## Phone control
 
 In `settings.json`, set `"web_host": "0.0.0.0"` and restart. Then open `http://<pc-ip>:8480/?k=<web_token>` on your phone. The token is in `settings.json`; localhost doesn't need it.
@@ -69,6 +79,9 @@ In `settings.json`, set `"web_host": "0.0.0.0"` and restart. Then open `http://<
 | `record_pov` | false | record your own monitor too |
 | `max_storage_gb` | 0 | >0: delete oldest sessions past this size |
 | `sender_filter` | "" | only record senders whose name contains this |
+| `immich_url` | "" | Immich server address, empty = no upload |
+| `immich_api_key` | "" | Immich API key |
+| `immich_album` | `VRCam {session}` | album name, `{session}` = session folder, "" = no album |
 | `osc_listen_port` | 9001 | 0 to disable if another OSC app needs 9001 |
 
 ## Troubleshooting

@@ -27,6 +27,10 @@ DEFAULTS = {
     "osc_host": "127.0.0.1",
     "osc_send_port": 9000,
     "osc_listen_port": 9001,          # set 0 to disable listening (if another OSC app owns 9001)
+    # Immich: upload each finished segment to your Immich server (empty url/key = off)
+    "immich_url": "",                 # e.g. http://192.168.1.20:2283 (the address you open Immich at)
+    "immich_api_key": "",             # Immich -> Account Settings -> API Keys
+    "immich_album": "VRCam {session}",  # album per session; "" = no album; no {session} = one album
     "ffmpeg": "",                     # path to ffmpeg.exe; empty = tools/ffmpeg/bin/ffmpeg.exe or PATH
 }
 

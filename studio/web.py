@@ -6,7 +6,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import config, rig
+from . import config, immich, rig
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
@@ -86,6 +86,21 @@ def make_handler(studio, osc, settings):
                 if settings["always_on"]:
                     studio.start()
                 return self._send(200, {"ok": True, "always_on": settings["always_on"]})
+            if p == "/api/immich":
+                for k in ("immich_url", "immich_api_key", "immich_album"):
+                    if k in b:
+                        settings[k] = str(b[k]).strip()
+                config.save(settings)
+                ok = False
+                if settings["immich_url"] and settings["immich_api_key"]:
+                    try:
+                        api = immich.Immich(settings["immich_url"], settings["immich_api_key"], timeout=8)
+                        api._json("GET", "/albums")   # proves URL + key (ping alone needs no key)
+                        ok = True
+                    except Exception as e:
+                        return self._send(200, {"ok": False, "error": str(e)[:200]})
+                    studio.uploader.kick()
+                return self._send(200, {"ok": ok})
             if p == "/api/ucam":
                 k, v = b.get("k"), b.get("v")
                 if k in BUTTONS:
