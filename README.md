@@ -23,8 +23,8 @@ VRChat's camera can stream over **Spout**, which shares the camera's GPU image d
 ## Install
 
 ```
-git clone https://github.com/<owner>/vrcam-studio.git
-cd vrcam-studio
+git clone https://github.com/theSLOP-dev/VRCAM-STUDIO.git
+cd VRCAM-STUDIO
 install.bat
 ```
 
