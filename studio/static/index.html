@@ -96,7 +96,8 @@ async function poll(){
   $('always').classList.toggle('on',ST.always_on);$('always').textContent='Always-on: '+(ST.always_on?'ON':'off');
   $('recinfo').textContent=ST.recording?(fmt(r.secs)+' · '+r.cams.filter(c=>c.alive).length+' cams'+(r.audio?' + audio':'')+(r.pov?' + POV':'')):'idle · encoder '+ST.encoder;
   $('warn').textContent=(!ST.spout_ok?'Spout library not available: '+ST.spout_err+'. ':'')+(ST.osc_err?ST.osc_err:'')+
-    (ST.spout_ok&&!ST.senders.length?'No Spout cameras yet: open the VRChat camera in Stream mode with Spout Stream on.':'');
+    (ST.spout_ok&&!ST.senders.length?'No Spout cameras yet: open the VRChat camera in Stream mode with Spout Stream on.':'')+
+    (ST.spout_ok&&ST.senders.length==1?' Only 1 camera: extra angles come from the Camera Dolly (VRC+ only) with Streaming = Multi, then Apply rig.':'');
   renderCams();
   if(!dirty&&dragI<0){rig=JSON.parse(JSON.stringify(ST.rig||[]));renderRows()}
   drawDial();

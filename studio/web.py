@@ -114,10 +114,15 @@ def make_handler(studio, osc, settings):
                 fp = rig.write(rig_state["cams"])
                 osc.send("/dolly/Play", False)
                 time.sleep(0.2)
+                # VRChat docs disagree on whether /dolly/Import takes a file path or the JSON
+                # itself, so send the path, then the JSON (a failed import is a no-op).
                 osc.send("/dolly/Import", fp)
+                time.sleep(0.4)
+                osc.send("/dolly/Import", json.dumps(rig.build(rig_state["cams"]), separators=(",", ":")))
                 time.sleep(0.5)
                 osc.send("/dolly/Play", True)
-                studio.log(f"rig applied: {len(rig_state['cams'])} cameras -> {fp}")
+                studio.log(f"rig applied: {len(rig_state['cams'])} cameras -> {fp} "
+                           f"(needs VRC+, Dolly Streaming=Multi; watch for new cameras above)")
                 return self._send(200, {"ok": True, "file": fp})
             if p == "/api/dolly/play":
                 osc.send("/dolly/Play", bool(b.get("on", True)))
