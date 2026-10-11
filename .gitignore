@@ -3,3 +3,4 @@ tools/ffmpeg/
 settings.json
 __pycache__/
 *.pyc
+install.log
